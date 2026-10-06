@@ -12,11 +12,20 @@ const ERROR_TEXTS = ['Có lỗi xảy ra khi thực hiện thao tác'];
 const API_DOMAIN = 'ecopharma.com.vn';
 // Thời gian chờ thông báo lỗi xuất hiện sau khi trang tải xong (mili giây)
 const WAIT_MS = 15000;
+// Giờ gửi tin "bot vẫn đang chạy" mỗi ngày (giờ Việt Nam, 0-23)
+const HEARTBEAT_HOUR = 8;
 // ===========================================
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const STATE_FILE = 'state/status.txt';
+const HEARTBEAT_FILE = 'state/heartbeat.txt';
+
+// Ngày và giờ hiện tại theo giờ Việt Nam (UTC+7)
+function vietnamTime() {
+  const d = new Date(Date.now() + 7 * 60 * 60 * 1000);
+  return { date: d.toISOString().slice(0, 10), hour: d.getUTCHours() };
+}
 
 function now() {
   return new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
@@ -136,6 +145,15 @@ async function main() {
 
   fs.mkdirSync('state', { recursive: true });
   fs.writeFileSync(STATE_FILE, current);
+
+  // Mỗi ngày một lần, sau giờ HEARTBEAT_HOUR, gửi tin xác nhận bot vẫn đang chạy
+  const vn = vietnamTime();
+  const lastHeartbeat = fs.existsSync(HEARTBEAT_FILE) ? fs.readFileSync(HEARTBEAT_FILE, 'utf8').trim() : '';
+  if (vn.hour >= HEARTBEAT_HOUR && lastHeartbeat !== vn.date) {
+    const status = current === 'ok' ? 'web bình thường' : 'web ĐANG LỖI, xem tin cảnh báo phía trên';
+    await sendText(`☀️ Bot vẫn đang chạy, ${status}\n${SITE_URL}\n${now()}`);
+    fs.writeFileSync(HEARTBEAT_FILE, vn.date);
+  }
 }
 
 main().catch((e) => {
